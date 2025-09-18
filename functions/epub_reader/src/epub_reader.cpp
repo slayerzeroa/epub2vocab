@@ -1,5 +1,6 @@
 #include <zip.h>
 #include <pugixml.hpp>
+#include "epub_reader.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -114,57 +115,45 @@ static void collect_text_recursive(const pugi::xml_node& node, std::string& out)
     }
 }
 
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: epub_reader <file.epub>\n";
-        return 1;
-    }
-    const char* path = argv[1];
 
+std::string extract_epub_text(const std::string& epub_path) {
     int errcode = 0;
-    zip_t* z = zip_open(path, ZIP_RDONLY, &errcode);
+    zip_t* z = zip_open(epub_path.c_str(), ZIP_RDONLY, &errcode);
     if (!z) {
         zip_error_t ze;
         zip_error_init_with_code(&ze, errcode);
-        std::cerr << "zip_open failed: " << zip_error_strerror(&ze) << "\n";
+        std::string msg = "zip_open failed: " + std::string(zip_error_strerror(&ze));
         zip_error_fini(&ze);
-        return 2;
+        throw std::runtime_error(msg);
     }
 
+    std::string all_text;
     try {
-        // (1) mimetype 확인
         std::string mimetype = read_zip_entry(z, "mimetype");
         while (!mimetype.empty() && (mimetype.back() == '\n' || mimetype.back() == '\r'))
             mimetype.pop_back();
 
-        std::cout << "[info] mimetype: " << mimetype << "\n";
         if (mimetype != "application/epub+zip") {
             std::cerr << "[warn] unexpected mimetype!\n";
         }
 
-        // (2) container.xml 읽기
+        // container.xml → OPF path
         std::string container_xml = read_zip_entry(z, "META-INF/container.xml");
-        std::cout << "[info] container.xml size: " << container_xml.size() << " bytes\n";
-
-        // (3) pugixml로 OPF 경로 추출
         pugi::xml_document doc;
         if (!doc.load_string(container_xml.c_str()))
             throw std::runtime_error("Failed to parse container.xml");
-
         auto rootfile = doc.select_node("/container/rootfiles/rootfile");
         if (!rootfile)
             throw std::runtime_error("No <rootfile> element");
-
         std::string opf_path = rootfile.node().attribute("full-path").as_string();
-        std::cout << "[info] OPF path: " << opf_path << "\n";
 
-        // (3) OPF 읽기 + 파싱
+        // OPF 읽기
         std::string opf_content = read_zip_entry(z, opf_path);
         pugi::xml_document opfdoc;
         if (!opfdoc.load_string(opf_content.c_str()))
             throw std::runtime_error("Failed to parse OPF");
 
-        // (4) manifest: id -> href 매핑
+        // manifest / spine 파싱
         std::unordered_map<std::string, std::string> id_to_href;
         pugi::xml_node manifest = opfdoc.child("package").child("manifest");
         for (pugi::xml_node item = manifest.child("item"); item; item = item.next_sibling("item")) {
@@ -173,7 +162,6 @@ int main(int argc, char* argv[]) {
             if (!id.empty() && !href.empty()) id_to_href[id] = href;
         }
 
-        // (5) spine: itemref(idref) 순서 수집
         std::vector<std::string> spine_hrefs;
         pugi::xml_node spine = opfdoc.child("package").child("spine");
         for (pugi::xml_node ir = spine.child("itemref"); ir; ir = ir.next_sibling("itemref")) {
@@ -182,70 +170,45 @@ int main(int argc, char* argv[]) {
             if (it != id_to_href.end()) spine_hrefs.push_back(it->second);
         }
 
-        // (6) 컨텐츠 읽어서 텍스트 추출 → 앞 N자 출력
+        // spine 순서대로 모든 텍스트 수집
         std::string opf_dir = dirname_of(opf_path);
-        std::string all_text;
-        // const size_t LIMIT = 2000; // 원하는 미리보기 글자수
-
         for (const auto& rel : spine_hrefs) {
             std::string entry = join_path(opf_dir, rel);
-            // 일부 OPF는 spine에 image/css 등 잡히기도 하므로 실패해도 통과
             try {
                 std::string xhtml = read_zip_entry(z, entry);
-                // XHTML 파싱
                 pugi::xml_document hdoc;
                 if (!hdoc.load_string(xhtml.c_str())) continue;
-
-                // 본문 루트 후보: <html> -> <body>
                 pugi::xml_node html = hdoc.child("html");
                 pugi::xml_node root = html ? html.child("body") : hdoc;
-
-                // 텍스트 수집
                 collect_text_recursive(root, all_text);
-
             } catch (...) {
-                // 무시하고 다음 항목
+                // 무시하고 계속
             }
         }
 
-        // 앞 LIMIT 글자 출력
-        if (all_text.empty()) {
-            std::cout << "[warn] No XHTML text collected from spine.\n";
-        } else {
-            // 연속 공백 정리(선택)
-            auto squish = [](std::string& s){
-                bool prev_space=false; size_t w=0;
-                for (size_t i=0;i<s.size();++i){
-                    char c = s[i];
-                    bool is_space = (c==' ' || c=='\n' || c=='\r' || c=='\t');
-                    if (is_space) {
-                        if (!prev_space) s[w++] = ' ';
-                        prev_space = true;
-                    } else {
-                        s[w++] = c; prev_space = false;
-                    }
+        zip_close(z);
+
+        // 연속 공백 압축
+        auto squish = [](std::string& s){
+            bool prev_space=false; size_t w=0;
+            for (size_t i=0;i<s.size();++i){
+                char c = s[i];
+                bool is_space = (c==' ' || c=='\n' || c=='\r' || c=='\t');
+                if (is_space) {
+                    if (!prev_space) s[w++] = ' ';
+                    prev_space = true;
+                } else {
+                    s[w++] = c; prev_space = false;
                 }
-                s.resize(w);
-            };
-            squish(all_text);
-            // 파일로 저장
-            std::ofstream ofs("book_text.txt");      // 원하는 파일명
-            if (!ofs) throw std::runtime_error("failed to create book_text.txt");
-            ofs << all_text;                         // 전체 텍스트 저장
-            ofs.close();
+            }
+            s.resize(w);
+        };
+        squish(all_text);
 
-            std::cout << "[info] Saved full text to book_text.txt\n";
-            // 미리보기 출력 (선택)
-            std::cout << all_text.substr(0, 1000) << "\n"; // 앞 1000자만 콘솔 미리보기
-
-        }
-
-
+        return all_text;
+    }
+    catch (...) {
         zip_close(z);
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "[error] " << e.what() << "\n";
-        zip_close(z);
-        return 3;
+        throw;  // 예외 다시 던짐
     }
 }
