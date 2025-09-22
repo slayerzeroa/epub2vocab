@@ -9,6 +9,9 @@
 #include <algorithm>
 #include <fstream>
 
+// 디버그용
+#include <filesystem>
+
 // ---- zip에서 파일 읽기 ----
 static std::string read_zip_entry(zip_t* z, const std::string& name) {
     zip_stat_t st;
@@ -118,6 +121,11 @@ static void collect_text_recursive(const pugi::xml_node& node, std::string& out)
 
 std::string extract_epub_text(const std::string& epub_path) {
     int errcode = 0;
+
+    // // 디버그용
+    // std::cerr << "[cwd] " << std::filesystem::current_path() << "\n";
+    // std::cerr << "[try] " << std::filesystem::absolute(epub_path) << "\n";
+
     zip_t* z = zip_open(epub_path.c_str(), ZIP_RDONLY, &errcode);
     if (!z) {
         zip_error_t ze;

@@ -4,5 +4,13 @@
     "CMAKE_TOOLCHAIN_FILE": "C:/Users/slaye/vcpkg/scripts/buildsystems/vcpkg.cmake",
     "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic"
   },
-  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "files.associations": {
+    "chrono": "cpp",
+    "system_error": "cpp",
+    "xlocale": "cpp",
+    "filesystem": "cpp",
+    "xlocinfo": "cpp",
+    "xstring": "cpp"
+  }
 }
