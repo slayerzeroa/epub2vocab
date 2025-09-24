@@ -1,7 +1,8 @@
-/build
+build
 *.exe
 /CMakeFiles
 /CMakeCache.txt
 /.vscode
 *.json
 *.txt
+.env
