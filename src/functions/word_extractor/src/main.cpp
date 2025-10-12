@@ -1,9 +1,11 @@
 // #include <cctype>
 // #include <string>
-// #include <set>
+// #include <vector>
 // #include <unordered_set>
+// #include <algorithm>
 // #include <fstream>
 // #include <iostream>
+
 
 // // ========== 정규화 유틸 (그대로) ==========
 // static void normalize_apostrophes_and_dashes(std::string& s) {
@@ -155,7 +157,7 @@
 // }
 
 
-// int word_extractor_main(std::string line) {
+// int word_extractor(std::string line) {
 //     std::string text;
 //     while (std::getline(std::cin, line)) {
 //         text += line + "\n";
@@ -171,6 +173,7 @@
 //     }
 //     return 0;
 // }
+
 
 
 #include <cctype>
@@ -290,7 +293,6 @@ static const std::unordered_set<std::string>& STOP() {
     static const auto stop = load_wordlist_auto("stopwords.txt");
     return stop;
 }
-
 // 본체: 입력 문자열을 한 번만 스캔하여 토큰화+정규화+필터
 // 반환: 사전/불용어/규칙 통과한 "고유한" 단어 집합
 static std::unordered_set<std::string> unique_words_fast(const std::string& text, const ProgressFn& on_progress = {}) {
@@ -344,31 +346,23 @@ static std::unordered_set<std::string> unique_words_fast(const std::string& text
 
         // --- 알파벳 ---
         if (ascii_is_alpha(c)) {
-            const bool is_upper = (c >= 'A' && c <= 'Z');
-            const bool is_lower = (c >= 'a' && c <= 'z');
             char lower = ascii_to_lower(c);
-
             if (!in_token) {
                 in_token = true;
                 token_started_at_sentence_start = at_sentence_start;
-
-                // 첫 글자 특성 기록
-                first_is_upper = is_upper;
-                seen_lower     = is_lower;   // 첫 글자가 소문자라면 곧바로 true
-                all_caps       = is_upper;   // 첫 글자가 대문자면 일단 true로 시작
+                first_is_upper = (c != lower);
+                seen_lower = (c == lower);   // 시작 문자가 소문자면 true
+                all_caps = (c != lower);     // 시작이 대문자면 all_caps 유지, 아니면 false
             } else {
-                // 진행 중 소문자를 하나라도 보면 ALL-CAPS 해제
-                if (is_lower) {
-                    seen_lower = true;
-                    all_caps   = false;
-                }
-                // 대문자는 all_caps에 영향 없음(유지)
+                if (c == lower) seen_lower = true;
+                if (c != lower) /*대문자*/ { /* 대문자 포함 → all_caps는 유지 */ }
+                else            /*소문자*/ { all_caps = false; }
             }
-
             cur.push_back(lower);
             at_sentence_start = false;
             continue;
         }
+
         // --- 내부 연결자: ' 또는 - (정규화: 그대로 저장) ---
         // 바로 뒤가 알파벳이면 단어 내부로 포함
         if ((c=='\'' || c=='-') && in_token && i+1<n && ascii_is_alpha((unsigned char)text[i+1])) {

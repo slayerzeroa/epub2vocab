@@ -11,6 +11,12 @@ add_library(epub_reader
     src/functions/epub_reader/src/epub_reader.cpp
 )
 
+set(WORD_EXTRACTOR_SOURCES
+  src/functions/word_extractor/src/word_extractor.cpp
+  src/functions/word_extractor/src/word_extractor.hpp
+)
+
+
 target_include_directories(epub_reader
     PUBLIC
       ${CMAKE_CURRENT_SOURCE_DIR}/src/functions/epub_reader/src
@@ -22,9 +28,23 @@ target_link_libraries(epub_reader
 
 add_executable(epub2vocab
     src/main.cpp
+    ${WORD_EXTRACTOR_SOURCES}
 )
 
 target_link_libraries(epub2vocab PRIVATE epub_reader)
+
+# words.txt / stopwords.txt 복사 (실행파일 옆으로)
+set(WORDS_TXT     "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/word_extractor/words.txt")
+set(STOPWORDS_TXT "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/word_extractor/stopwords.txt")
+
+add_custom_command(TARGET epub2vocab POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:epub2vocab>"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${WORDS_TXT}"     "$<TARGET_FILE_DIR:epub2vocab>/words.txt"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${STOPWORDS_TXT}" "$<TARGET_FILE_DIR:epub2vocab>/stopwords.txt"
+  VERBATIM
+  COMMENT "Copying words/stopwords next to epub2vocab.exe"
+)
+
 
 # (MinGW용) 콘솔 서브시스템
 if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
