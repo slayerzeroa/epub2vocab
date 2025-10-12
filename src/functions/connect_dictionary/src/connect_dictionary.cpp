@@ -50,7 +50,7 @@ std::string custom_get(std::string url) {
 auto env = load_env("./src/.env"); // 프로젝트 루트 기준 상대경로
 std::string DICTIONARY_KEY = env["DICTIONARY_KEY"];
 
-// 주어진 단어의 짧은 정의(shortdef)를 가져와서 출력
+// 주어진 단어의 짧은 정의(shortdef)를 가져와서 출력 + 품사(fl)
 void print_definition(const std::string& word) {
     if (DICTIONARY_KEY.empty()) {
         std::cerr << "Error: DICTIONARY_KEY is not set in .env file.\n";
@@ -58,55 +58,54 @@ void print_definition(const std::string& word) {
     }
     std::cout << "Looking up: " << word << "\n";
 
-    // 1) API URL 구성
     std::string url = "https://www.dictionaryapi.com/api/v3/references/collegiate/json/"
                       + word + "?key=" + DICTIONARY_KEY;
 
-    // 디버깅
     std::cout << "Request URL: " << url << "\n";
 
-    std::cout << custom_get(url) << "\n";
+    std::string raw = custom_get(url);
+    nlohmann::json j = nlohmann::json::parse(raw);
+    // std::cout << j.dump(2) << "\n";
 
-    // // 2) HTTP GET 요청
-    // auto r = cpr::Get(cpr::Url{url});
-    // if (r.error) {
-    //     std::cerr << "HTTP error: " << r.error.message << "\n";
-    //     return;
-    // }
-    // if (r.status_code != 200) {
-    //     std::cerr << "Request failed: HTTP " << r.status_code << "\n";
-    //     return;
-    // }
-    std::cout << "Sending request...\n";
+    if (!j.is_array() || j.empty()) {
+        std::cout << "No definitions found for \"" << word << "\"\n";
+        return;
+    }
 
-    // std::cout << "Response received. Size: " << r.text.size() << " bytes\n";
+    // 자동완성 제안(문자열 배열) 대응
+    bool all_strings = true;
+    for (const auto& e : j) { if (!e.is_string()) { all_strings = false; break; } }
+    if (all_strings) {
+        std::cout << "Did you mean:\n";
+        for (const auto& s : j) std::cout << " - " << s.get<std::string>() << "\n";
+        return;
+    }
 
-    // // 3) JSON 파싱
-    // nlohmann::json j;
-    // try {
-    //     j = nlohmann::json::parse(r.text);
-    // } catch (const std::exception& e) {
-    //     std::cerr << "JSON parse error: " << e.what() << "\n";
-    //     return;
-    // }
+    // Merriam-Webster는 하나의 단어에 여러 entry가 있을 수 있음
+    for (size_t i = 0; i < j.size(); ++i) {
+        const auto& entry = j[i];
+        if (!entry.is_object() || !entry.contains("shortdef")) continue;
 
-    // // 4) 결과가 사전 항목 배열인지 확인
-    // if (!j.is_array() || j.empty()) {
-    //     std::cout << "No definitions found for \"" << word << "\"\n";
-    //     return;
-    // }
+        // 품사(fl)와 표제어(hwi.hw) 추출
+        std::string pos;
+        if (entry.contains("fl") && entry["fl"].is_string()) pos = entry["fl"].get<std::string>();
 
-    // // Merriam-Webster는 하나의 단어에 여러 entry가 있을 수 있음
-    // for (size_t i = 0; i < j.size(); ++i) {
-    //     const auto& entry = j[i];
-    //     if (!entry.contains("shortdef")) continue;
+        std::string headword;
+        if (entry.contains("hwi") && entry["hwi"].is_object()
+            && entry["hwi"].contains("hw") && entry["hwi"]["hw"].is_string()) {
+            headword = entry["hwi"]["hw"].get<std::string>();
+        }
 
-    //     std::cout << "---- Definition Set " << (i + 1) << " ----\n";
-    //     for (const auto& def : entry["shortdef"]) {
-    //         std::cout << "- " << def.get<std::string>() << "\n";
-    //     }
-    // }
+        std::cout << "---- Definition Set " << (i + 1) << " ----\n";
+        if (!headword.empty()) std::cout << "Headword: " << headword << "\n";
+        if (!pos.empty())      std::cout << "Part of Speech: " << pos << "\n";
+
+        for (const auto& def : entry["shortdef"]) {
+            if (def.is_string()) std::cout << "- " << def.get<std::string>() << "\n";
+        }
+    }
 }
+
 
 int main() {
     // Merriam-Webster Collegiate Dictionary API key

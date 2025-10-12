@@ -12,6 +12,7 @@
     "filesystem": "cpp",
     "xlocinfo": "cpp",
     "xstring": "cpp",
-    "stdexcept": "cpp"
+    "stdexcept": "cpp",
+    "iostream": "cpp"
   }
 }
