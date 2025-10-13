@@ -317,7 +317,7 @@ static std::unordered_set<std::string> unique_words_fast(const std::string& text
     for (size_t i=0; i<n; ++i) {
         unsigned char c = (unsigned char)text[i];
 
-        std::cout << c;
+        // std::cout << c;
 
         // Ctrl+Z 무시
         if (c == 0x1A) continue;
@@ -485,7 +485,10 @@ int word_extractor_main(const std::string& input) {
     for (const auto& s : set) v.push_back(s);
     std::sort(v.begin(), v.end());
 
-    std::ofstream fout("vocab.txt", std::ios::binary);
+    // 파일로 저장
+    namespace fs = std::filesystem;
+    fs::path out = exe_dir() / "vocab.txt";
+    std::ofstream fout(out, std::ios::binary);
     fout << "Unique filtered words (" << v.size() << ")\n";
     for (const auto& s : v) { fout << s << '\n'; }
     fout.close();

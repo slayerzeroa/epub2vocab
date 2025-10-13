@@ -33,6 +33,13 @@ add_executable(epub2vocab
 
 target_link_libraries(epub2vocab PRIVATE epub_reader)
 
+add_subdirectory(src/functions/py_runner)
+
+target_link_libraries(epub2vocab PRIVATE
+  py_runner
+)
+
+
 # words.txt / stopwords.txt 복사 (실행파일 옆으로)
 set(WORDS_TXT     "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/word_extractor/words.txt")
 set(STOPWORDS_TXT "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/word_extractor/stopwords.txt")
@@ -44,7 +51,6 @@ add_custom_command(TARGET epub2vocab POST_BUILD
   VERBATIM
   COMMENT "Copying words/stopwords next to epub2vocab.exe"
 )
-
 
 # (MinGW용) 콘솔 서브시스템
 if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")

@@ -8,6 +8,26 @@
 #include <algorithm>
 #include <fstream>
 
+
+#include <filesystem>
+#ifdef _WIN32
+  #include <windows.h>
+#endif
+
+static std::filesystem::path exe_dir() {
+#ifdef _WIN32
+    wchar_t buf[MAX_PATH];
+    DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    return n ? std::filesystem::path(buf).parent_path()
+             : std::filesystem::current_path();
+#else
+    // Linux/macOS는 /proc/self/exe 등으로 보강하거나,
+    // 간단히 현재 작업 디렉토리를 쓰세요.
+    return std::filesystem::current_path();
+#endif
+}
+
+
 // ---- zip에서 파일 읽기 ----
 static std::string read_zip_entry(zip_t* z, const std::string& name) {
     zip_stat_t st;
@@ -229,15 +249,17 @@ int main(int argc, char* argv[]) {
             };
             squish(all_text);
             // 파일로 저장
-            std::ofstream ofs("book_text.txt");      // 원하는 파일명
-            if (!ofs) throw std::runtime_error("failed to create book_text.txt");
-            ofs << all_text;                         // 전체 텍스트 저장
+            namespace fs = std::filesystem;
+            fs::path out = exe_dir() / "book_text.txt";
+            std::ofstream ofs(out, std::ios::binary);
+
+            if (!ofs) throw std::runtime_error("failed to create: " + out.string());
+            ofs << all_text;
             ofs.close();
 
             std::cout << "[info] Saved full text to book_text.txt\n";
-            // 미리보기 출력 (선택)
-            std::cout << all_text.substr(0, 1000) << "\n"; // 앞 1000자만 콘솔 미리보기
-
+            // // 미리보기 출력 (선택)
+            // std::cout << all_text.substr(0, 1000) << "\n"; // 앞 1000자만 콘솔 미리보기
         }
 
 

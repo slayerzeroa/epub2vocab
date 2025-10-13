@@ -1,4 +1,4 @@
-# # pip install nltk
+# pip install nltk
 # import nltk
 # from nltk.corpus import stopwords
 
@@ -14,3 +14,8 @@
 #         f.write(w + "\n")
 
 # print(f"Saved {len(stops)} stopwords to stopwords.txt")
+
+
+# import nltk
+# for pkg in ["wordnet","omw-1.4","averaged_perceptron_tagger"]:
+#     nltk.download(pkg)
