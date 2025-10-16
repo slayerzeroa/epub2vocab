@@ -71,6 +71,9 @@
     "xtr1common": "cpp",
     "xtree": "cpp",
     "xutility": "cpp",
-    "functional": "cpp"
+    "functional": "cpp",
+    "numeric": "cpp",
+    "array": "cpp",
+    "random": "cpp"
   }
 }

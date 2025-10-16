@@ -130,7 +130,7 @@ def main():
         text = "\n".join(lines) + "\n"
     else:
         uniq = sorted(lemmas)  # 키만 정렬
-        header = f"Unique lemmas ({len(uniq)})"
+        header = f"{len(uniq)}"
         text = header + "\n" + "\n".join(uniq) + "\n"
 
     # 저장 또는 stdout

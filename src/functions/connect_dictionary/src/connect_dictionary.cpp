@@ -8,9 +8,29 @@
 
 #include <fstream>
 #include <sstream>
-#include <iostream>
 #include <unordered_map>
 #include <stdexcept>  // std::runtime_error
+#include "connect_dictionary.hpp"
+
+
+#include <filesystem>
+#ifdef _WIN32
+  #include <windows.h>
+#endif
+
+static std::filesystem::path exe_dir() {
+#ifdef _WIN32
+    wchar_t buf[MAX_PATH];
+    DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    return n ? std::filesystem::path(buf).parent_path()
+             : std::filesystem::current_path();
+#else
+    // Linux/macOS는 /proc/self/exe 등으로 보강하거나,
+    // 간단히 현재 작업 디렉토리를 쓰세요.
+    return std::filesystem::current_path();
+#endif
+}
+
 
 std::unordered_map<std::string,std::string> load_env(const std::string& path) {
     std::unordered_map<std::string,std::string> env;
@@ -47,21 +67,31 @@ std::string custom_get(std::string url) {
 }
 
 
-auto env = load_env("./src/.env"); // 프로젝트 루트 기준 상대경로
+void save_to_file(const std::string& path, const std::string& content) {
+    std::ofstream ofs(path, std::ios::binary);
+    if (!ofs) throw std::runtime_error("failed to create: " + path);
+    ofs << content;
+    ofs.close();
+}
+
+
+
+std::filesystem::path envPath = exe_dir() / ".env";
+auto env = load_env(envPath.u8string()); // 프로젝트 루트 기준 상대경로
 std::string DICTIONARY_KEY = env["DICTIONARY_KEY"];
 
 // 주어진 단어의 짧은 정의(shortdef)를 가져와서 출력 + 품사(fl)
-void print_definition(const std::string& word) {
+std::string print_definition(const std::string& word) {
     if (DICTIONARY_KEY.empty()) {
         std::cerr << "Error: DICTIONARY_KEY is not set in .env file.\n";
-        return;
+        return std::string("No DICTIONARY_KEY provided.");
     }
     std::cout << "Looking up: " << word << "\n";
 
     std::string url = "https://www.dictionaryapi.com/api/v3/references/collegiate/json/"
                       + word + "?key=" + DICTIONARY_KEY;
 
-    std::cout << "Request URL: " << url << "\n";
+    // std::cout << "Request URL: " << url << "\n";
 
     std::string raw = custom_get(url);
     nlohmann::json j = nlohmann::json::parse(raw);
@@ -69,8 +99,10 @@ void print_definition(const std::string& word) {
 
     if (!j.is_array() || j.empty()) {
         std::cout << "No definitions found for \"" << word << "\"\n";
-        return;
+        return std::string("No definitions found.");
     }
+
+    std::string response;
 
     // 자동완성 제안(문자열 배열) 대응
     bool all_strings = true;
@@ -78,11 +110,15 @@ void print_definition(const std::string& word) {
     if (all_strings) {
         std::cout << "Did you mean:\n";
         for (const auto& s : j) std::cout << " - " << s.get<std::string>() << "\n";
-        return;
+        return std::string("No exact match found. Suggestions provided.");
     }
 
     // Merriam-Webster는 하나의 단어에 여러 entry가 있을 수 있음
     for (size_t i = 0; i < j.size(); ++i) {
+        if (i >= 3) { // 최대 3개 세트만 출력
+            std::cout << "... (more definitions available)\n";
+            break;
+        }
         const auto& entry = j[i];
         if (!entry.is_object() || !entry.contains("shortdef")) continue;
 
@@ -96,27 +132,54 @@ void print_definition(const std::string& word) {
             headword = entry["hwi"]["hw"].get<std::string>();
         }
 
-        std::cout << "---- Definition Set " << (i + 1) << " ----\n";
-        if (!headword.empty()) std::cout << "Headword: " << headword << "\n";
-        if (!pos.empty())      std::cout << "Part of Speech: " << pos << "\n";
-
+        response += "Target Word: " + word + "\n";
+        response += "Definition Set " + std::to_string(i + 1) + ":\n";
+        response += "Headword: " + headword + "\n";
+        response += "Part of Speech: " + pos + "\n";
+        response += "Definitions:\n";
         for (const auto& def : entry["shortdef"]) {
-            if (def.is_string()) std::cout << "- " << def.get<std::string>() << "\n";
+            if (def.is_string()) response += " - " + def.get<std::string>() + "\n";
         }
+
+        // std::cout << "---- Definition Set " << (i + 1) << " ----\n";
+        // if (!headword.empty()) std::cout << "Headword: " << headword << "\n";
+        // if (!pos.empty())      std::cout << "Part of Speech: " << pos << "\n";
+
+        // for (const auto& def : entry["shortdef"]) {
+        //     if (def.is_string()) std::cout << "- " << def.get<std::string>() << "\n";
+        // }
     }
+    return response;
 }
 
 
-int main() {
-    // Merriam-Webster Collegiate Dictionary API key
-    // // 디버깅
-    // std::cout << "Current working directory: " << std::filesystem::current_path().u8string() << "\n";
-    // std::cout << "Dictionary Key from .env: " << DICTIONARY_KEY << "\n";
+// int connect_dictionary(int argc, char* argv[]) {
+//     if (argc < 2) {
+//         std::cerr << "Usage: " << argv[0] << " <word>\n";
+//         return 1;
+//     }
 
-    std::string word;
-    std::cout << "Enter a word to look up: ";
-    std::cin >> word;
-    print_definition(word);
+//     std::string word = argv[1];
+
+//     std::string response = print_definition(word); // ← print_definition은 std::string 반환으로 통일
+
+//     std::filesystem::path out = exe_dir() / "definition.txt";
+//     std::ofstream ofs(out, std::ios::binary);
+//     ofs << response;
+//     ofs.close();
+
+//     return 0;
+// }
+
+
+int connect_dictionary(std::string word) {
+    std::string response = print_definition(word); // ← print_definition은 std::string 반환으로 통일
+
+    std::filesystem::path out = exe_dir() / "definition.txt";
+    std::ofstream ofs(out, std::ios::binary);
+    ofs << response;
+    ofs.close();
+
     return 0;
 }
 
