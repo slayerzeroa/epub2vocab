@@ -1,10 +1,12 @@
 #include "functions/epub_reader/src/epub_reader.hpp"
 #include "functions/word_extractor/src/word_extractor.hpp"
 #include "functions/connect_dictionary/src/connect_dictionary.hpp"
+#include "functions/send_telegram/src/send_telegram.hpp"
 #include "py_runner/py_runner.hpp"
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <filesystem>
 #include <array>
 #include <vector>
@@ -119,6 +121,21 @@ int main(int argc, char* argv[]) {
             }
             save_to_file((exeDir / "definition.txt").string(), wholeLines);
         }
+
+        const fs::path defPath = exeDir / "definition.txt";
+        std::ifstream ifs(defPath, std::ios::binary);
+        if (!ifs) {
+            std::cerr << "definition.txt not found\n";
+            return 1;
+        }
+        std::ostringstream oss;
+        oss << ifs.rdbuf();
+        std::string content = oss.str();
+
+        // 짧으면 메시지로, 길면 파일로
+        telegram_send_message(content);
+
+
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";

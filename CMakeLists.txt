@@ -39,6 +39,7 @@ target_link_libraries(epub2vocab
     epub_reader
     py_runner
     connect_dictionary
+    send_telegram
 )
 
 add_subdirectory(src/functions/py_runner)
@@ -64,10 +65,26 @@ target_include_directories(connect_dictionary
 )
 
 
+add_library(send_telegram
+    src/functions/send_telegram/src/send_telegram.cpp
+    src/functions/send_telegram/src/send_telegram.hpp
+)
+
+target_link_libraries(send_telegram
+  PUBLIC
+    CURL::libcurl
+)
+
+target_include_directories(send_telegram
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/functions/send_telegram/src
+)
+
+
 # words.txt / stopwords.txt 복사 (실행파일 옆으로)
 set(WORDS_TXT     "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/word_extractor/words.txt")
 set(STOPWORDS_TXT "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/word_extractor/stopwords.txt")
-set(DOTENV          "${CMAKE_CURRENT_SOURCE_DIR}/src/functions/connect_dictionary/src/.env")
+set(DOTENV          "${CMAKE_CURRENT_SOURCE_DIR}/src/.env")
 
 add_custom_command(TARGET epub2vocab POST_BUILD
   COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:epub2vocab>"
