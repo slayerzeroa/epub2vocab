@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
 
         // 단어 추출 (내부에서 exe 디렉토리 찾는 코드 없다면 필요시 넘겨도 OK)
         word_extractor_main(text);
-
+ 
         std::cout << "[info] Saved unique words to vocab.txt\n";
 
         // (선택) 파이썬 레마타이저 실행: vocab.txt → vocab_lemma.txt

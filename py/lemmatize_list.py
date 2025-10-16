@@ -74,6 +74,7 @@ import argparse
 import nltk
 from nltk.corpus import wordnet as wn
 from nltk.stem import WordNetLemmatizer
+from wordfreq import zipf_frequency
 
 LEM_ORDER = [wn.VERB, wn.NOUN, wn.ADJ, wn.ADV]  # 맥락 없을 때 우선순위
 
@@ -106,6 +107,21 @@ def read_words(path: Path):
             words.append(normalize(ln))
     return words
 
+def filter_by_zipf(words, max_zipf=4.5, lang="en"):
+    """
+    Zipf 빈도 기준으로 '쉬운 단어' 제외.
+    - max_zipf: 이 값 이상이면 제외 (기본 4.0은 상위 약 10k~20k 단어 수준)
+    - lang: 언어 코드 ('en', 'ko', 'es' 등)
+    """
+    filtered = []
+    for w in words:
+        # zipf_frequency(word, language) → log10 빈도 스코어
+        freq = zipf_frequency(w.lower(), lang)
+        if freq < max_zipf:
+            filtered.append(w)
+    return filtered
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("infile", help="줄당 1단어 파일 (C++ 결과)")
@@ -127,9 +143,11 @@ def main():
     # 결과 문자열 구성
     if args.map:
         lines = [f"{l}\t<- {', '.join(sorted(lemmas[l]))}" for l in sorted(lemmas)]
+        lines = filter_by_zipf(lines)
         text = "\n".join(lines) + "\n"
     else:
         uniq = sorted(lemmas)  # 키만 정렬
+        uniq = filter_by_zipf(uniq)
         header = f"{len(uniq)}"
         text = header + "\n" + "\n".join(uniq) + "\n"
 
