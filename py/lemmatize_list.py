@@ -107,7 +107,7 @@ def read_words(path: Path):
             words.append(normalize(ln))
     return words
 
-def filter_by_zipf(words, max_zipf=4.5, lang="en"):
+def filter_by_zipf(words, max_zipf=4.0, lang="en"):
     """
     Zipf 빈도 기준으로 '쉬운 단어' 제외.
     - max_zipf: 이 값 이상이면 제외 (기본 4.0은 상위 약 10k~20k 단어 수준)

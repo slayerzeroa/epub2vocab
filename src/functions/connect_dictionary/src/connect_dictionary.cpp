@@ -130,9 +130,11 @@ std::string print_definition(const std::string& word) {
         if (entry.contains("hwi") && entry["hwi"].is_object()
             && entry["hwi"].contains("hw") && entry["hwi"]["hw"].is_string()) {
             headword = entry["hwi"]["hw"].get<std::string>();
-        }
+        };
 
-        response += "Target Word: " + word + "\n";
+        if (i == 0) {
+            response += "Target Word: " + word + "\n";
+        };
         response += "Definition Set " + std::to_string(i + 1) + ":\n";
         response += "Headword: " + headword + "\n";
         response += "Part of Speech: " + pos + "\n";
